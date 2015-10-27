@@ -1,0 +1,156 @@
+<div class="editor-row" style="margin-top: 10px;">
+    <div  ng-repeat="target in panel.targets"
+          class="tight-form"
+          ng-class="{'tight-form-disabled': target.hide}"
+          ng-controller="MonascaTargetCtrl"
+          ng-init="init()">
+        <ul class="tight-form-list pull-right">
+            <li class="tight-form-item">
+                <div class="dropdown">
+                    <a  class="pointer dropdown-toggle"
+                        data-toggle="dropdown"
+                        tabindex="1">
+                        <i class="fa fa-bars"></i>
+                    </a>
+                    <ul class="dropdown-menu pull-right" role="menu">
+                        <li role="menuitem">
+                            <a  tabindex="1"
+                                ng-click="duplicate()">
+                                Duplicate
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+            <li class="tight-form-item last">
+                <a class="pointer" tabindex="1" ng-click="removeDataQuery(target)">
+                    <i class="fa fa-remove"></i>
+                </a>
+            </li>
+        </ul>
+        <ul class="tight-form-list">
+            <li>
+                <a  class="tight-form-item"
+                    ng-click="target.hide = !target.hide; get_data();"
+                    role="menuitem">
+                    <i class="fa fa-eye"></i>
+                </a>
+            </li>
+        </ul>
+        <ul class="tight-form-list" role="menu">
+            <li class="tight-form-item">
+                Function
+            </li>
+            <li>
+                <select class="input-medium tight-form-input"
+                        ng-model="target.aggregator"
+                        ng-blur="targetBlur()"
+                        ng-options="f for f in ['none','count', 'avg', 'sum', 'min', 'max']"></select>
+            </li>
+            <li class="tight-form-item">
+                Metric
+                <a bs-tooltip="target.errors.metric"
+                    style="color: rgb(229, 189, 28)"
+                    ng-show="target.errors.metric">
+                    <i class="fa fa-warning"></i>
+                </a>
+            </li>
+            <li>
+                <input type="text"
+                       class="tight-form-input input-medium"
+                       ng-model="target.metric"
+                       spellcheck='false'
+                       placeholder="metric"
+                       bs-typeahead="suggestMetrics"
+                       data-min-length=0
+                       ng-change="validateMetricChange()"
+                       ng-blur="targetBlur()" >
+            </li>
+            <li class="tight-form-item" ng-hide="target.aggregator=='none'">
+                Group By Time
+                <a bs-tooltip="target.errors.period"
+                    style="color: rgb(229, 189, 28)"
+                    ng-show="target.errors.period">
+                    <i class="fa fa-warning"></i>
+                </a>
+            </li>
+            <li>
+                <input type="text"
+                       class="tight-form-input input-medium"
+                       ng-model="target.period"
+                       spellcheck='false'
+                       placeholder="300"
+                       data-min-length=0
+                       ng-change="validateGroupBy()"
+                       ng-blur="targetBlur()"
+                       ng-hide="target.aggregator=='none'"
+                       >
+            </li>
+            <li class="tight-form-item">
+                Alias
+            </li>
+            <li>
+                <input type="text"
+                       class="tight-form-input input-medium"
+                       ng-model="target.alias"
+                       spellcheck='false'
+                       placeholder="alias"
+                       bs-typeahead="suggestAlias"
+                       data-min-length=0
+                       ng-blur="targetBlur()"
+                       >
+            </li>
+        </ul>
+        <div class="clearfix"></div>
+        <div class="tight-form">
+            <ul class="tight-form-list" role="menu">
+                <li class="tight-form-item">
+                    Dimensions
+                </li>
+                <li ng-repeat="dimension in target.dimensions track by $index" class="tight-form-item">
+                    {{dimension.key}}&nbsp;=&nbsp;{{dimension.value}}
+                    <a ng-click="removeDimension($index)">
+                        <i class="fa fa-remove"></i>
+                    </a>
+                </li>
+                <li class="tight-form-item" ng-hide="addDimensionMode">
+                    <a ng-click="addDimension()">
+                        <i class="fa fa-plus"></i>
+                    </a>
+                </li>
+                <li ng-show="addDimensionMode">
+                    <span>
+                        <input type="text"
+                               class="input-small tight-form-input"
+                               spellcheck='false'
+                               ng-model="target.currentDimension.key"
+                               placeholder="key"
+                               bs-typeahead="suggestDimensionKeys"
+                               data-min-length=0
+                               ng-change="validateCurrentDimension()">
+                        <input type="text"
+                               class="input-small tight-form-input"
+                               spellcheck='false'
+                               placeholder="value"
+                               bs-typeahead="suggestDimensionValues"
+                               data-min-length=0
+                               ng-model="target.currentDimension.value"
+                               ng-change="validateCurrentDimension()">
+                    </span>
+                    <a bs-tooltip="target.errors.currentDimension"
+                        style="color: rgb(229, 189, 28)"
+                        ng-show="target.errors.currentDimension">
+                        <i class="fa fa-warning"></i>
+                    </a>
+                    <a ng-click="clearDimension()">
+                        <i class="fa fa-remove"></i>
+                    </a>
+                    <a ng-click="addDimension()">
+                        <i class="fa fa-plus"></i>
+                    </a>
+                </li>
+            </ul>
+            <div class="clearfix"></div>
+        </div>
+    </div>
+</div>

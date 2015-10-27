@@ -1,0 +1,17 @@
+{
+  "pluginType": "datasource",
+  "name": "Monasca",
+
+  "type": "monasca",
+  "serviceName": "MonascaDatasource",
+
+  "module": "plugins/datasource/monasca/datasource",
+
+  "partials": {
+    "config": "app/plugins/datasource/monasca/partials/config.html",
+    "query": "app/plugins/datasource/monasca/partials/query.editor.html"
+  },
+
+  "metrics": true,
+  "annotations": false
+}
