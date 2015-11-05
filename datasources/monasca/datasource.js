@@ -1,11 +1,13 @@
 define([
   'angular',
   'lodash',
+  'app/core/utils/datemath',
   'kbn',
+  './directives',
+  './query_ctrl',
   'moment',
-  './queryCtrl',
 ],
-function (angular, _, kbn) {
+function (angular, _, dateMath, kbn) {
   'use strict';
 
   var module = angular.module('grafana.services');
@@ -160,7 +162,7 @@ function (angular, _, kbn) {
       var target = data.name;
       var alias = url.match(/alias=[^&]*/);
       if ( alias ) {
-        target = alias[0].substring(6);
+        target = alias[0].substring('alias='.length);
       }
       var raw_datapoints;
       var aggregator;
@@ -171,7 +173,7 @@ function (angular, _, kbn) {
       else {
         raw_datapoints = data.statistics;
         aggregator = url.match(/statistics=[^&]*/);
-        aggregator = aggregator[0].substring(11);
+        aggregator = aggregator[0].substring('statistics='.length);
       }
       var datapoints = [];
       var timeCol = data.columns.indexOf('timestamp');
@@ -242,13 +244,13 @@ function (angular, _, kbn) {
       if (date === 'now') {
         return null;
       }
-      return moment.utc(kbn.parseDate(date).getTime()).toISOString();
+      return moment.utc(dateMath.parse(date).valueOf()).toISOString();
     };
 
     MonascaDatasource.prototype.convertPeriod = function(target) {
       var regex = target.match(/period=[^&]*/);
       if (regex) {
-        var period = regex[0].substring(7);
+        var period = regex[0].substring('period='.length);
         var matches = period.match(kbn.interval_regex);
         if (matches) {
           period = kbn.interval_to_seconds(period);

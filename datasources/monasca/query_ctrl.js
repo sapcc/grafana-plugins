@@ -9,7 +9,7 @@ function (angular, _) {
 
   var metricList = null;
 
-  module.controller('MonascaTargetCtrl', function($scope) {
+  module.controller('MonascaQueryCtrl', function($scope, uiSegmentSrv) {
 
     $scope.init = function() {
       if (!$scope.target.aggregator) {
@@ -200,6 +200,8 @@ function (angular, _) {
     $scope.suggestAlias = function(query, callback) {
       return $scope.datasource.listTemplates();
     };
+
+    $scope.init();
 
   });
 
