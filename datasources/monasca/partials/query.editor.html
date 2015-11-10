@@ -1,27 +1,27 @@
-<div class="editor-row" style="margin-top: 10px;">
-    <div  ng-repeat="target in panel.targets"
-          class="tight-form"
-          ng-class="{'tight-form-disabled': target.hide}"
-          ng-controller="MonascaQueryCtrl"
-          ng-init="init()">
+<div class="tight-form">
+    <div  class="tight-form">
         <ul class="tight-form-list pull-right">
+            <li ng-show="parserError" class="tight-form-item">
+                <a bs-tooltip="parserError" style="color: rgb(229, 189, 28)" role="menuitem">
+                    <i class="fa fa-warning"></i>
+                </a>
+            </li>
+            <li class="tight-form-item small" ng-show="target.datasource">
+                <em>{{target.datasource}}</em>
+            </li>
             <li class="tight-form-item">
                 <div class="dropdown">
-                    <a  class="pointer dropdown-toggle"
-                        data-toggle="dropdown"
-                        tabindex="1">
+                    <a  class="pointer dropdown-toggle" data-toggle="dropdown" tabindex="1">
                         <i class="fa fa-bars"></i>
                     </a>
                     <ul class="dropdown-menu pull-right" role="menu">
-                        <li role="menuitem">
-                            <a  tabindex="1"
-                                ng-click="duplicate()">
-                                Duplicate
-                            </a>
-                        </li>
+                        <li role="menuitem"><a tabindex="1" ng-click="duplicateDataQuery(target)">Duplicate</a></li>
+                        <li role="menuitem"><a tabindex="1" ng-click="moveDataQuery($index, $index-1)">Move up</a></li>
+                        <li role="menuitem"><a tabindex="1" ng-click="moveDataQuery($index, $index+1)">Move down</a></li>
                     </ul>
                 </div>
             </li>
+
             <li class="tight-form-item last">
                 <a class="pointer" tabindex="1" ng-click="removeDataQuery(target)">
                     <i class="fa fa-remove"></i>
@@ -37,7 +37,7 @@
                 </a>
             </li>
         </ul>
-        <ul class="tight-form-list" role="menu">
+        <ul class="tight-form-list">
             <li class="tight-form-item">
                 Function
             </li>
@@ -102,55 +102,50 @@
             </li>
         </ul>
         <div class="clearfix"></div>
-        <div class="tight-form">
-            <ul class="tight-form-list" role="menu">
-                <li class="tight-form-item">
-                    Dimensions
-                </li>
-                <li ng-repeat="dimension in target.dimensions track by $index" class="tight-form-item">
-                    {{dimension.key}}&nbsp;=&nbsp;{{dimension.value}}
+    </div>
+    <div class="tight-form">
+        <ul class="tight-form-list">
+            <li class="tight-form-item">
+                Dimensions
+            </li>
+            <li ng-repeat="dimension in target.dimensions track by $index">
+                <input type="text"
+                       class="input-small tight-form-input last"
+                       spellcheck='false'
+                       placeholder="key"
+                       ng-model="dimension.key"
+                       bs-typeahead="suggestDimensionKeys"
+                       data-min-length=0
+                       ng-change="validateDimension($index)"
+                       ng-blur="targetBlur()">
+                &nbsp;=&nbsp;
+                <input type="text"
+                       class="input-small tight-form-input last"
+                       spellcheck='false'
+                       placeholder="value"
+                       ng-model="dimension.value"
+                       bs-typeahead="suggestDimensionValues"
+                       data-min-length=0
+                       ng-change="validateDimension($index)"
+                       ng-click="editDimension($index)"
+                       ng-blur="targetBlur()">
+                <span class="tight-form-item">
+                    <a bs-tooltip="getDimensionErrors($index)"
+                        style="color: rgb(229, 189, 28)"
+                        ng-show="getDimensionErrors($index)">
+                        <i class="fa fa-warning"></i>
+                    </a>
                     <a ng-click="removeDimension($index)">
                         <i class="fa fa-remove"></i>
                     </a>
-                </li>
-                <li class="tight-form-item" ng-hide="addDimensionMode">
-                    <a ng-click="addDimension()">
-                        <i class="fa fa-plus"></i>
-                    </a>
-                </li>
-                <li ng-show="addDimensionMode">
-                    <span>
-                        <input type="text"
-                               class="input-small tight-form-input"
-                               spellcheck='false'
-                               ng-model="target.currentDimension.key"
-                               placeholder="key"
-                               bs-typeahead="suggestDimensionKeys"
-                               data-min-length=0
-                               ng-change="validateCurrentDimension()">
-                        <input type="text"
-                               class="input-small tight-form-input"
-                               spellcheck='false'
-                               placeholder="value"
-                               bs-typeahead="suggestDimensionValues"
-                               data-min-length=0
-                               ng-model="target.currentDimension.value"
-                               ng-change="validateCurrentDimension()">
-                    </span>
-                    <a bs-tooltip="target.errors.currentDimension"
-                        style="color: rgb(229, 189, 28)"
-                        ng-show="target.errors.currentDimension">
-                        <i class="fa fa-warning"></i>
-                    </a>
-                    <a ng-click="clearDimension()">
-                        <i class="fa fa-remove"></i>
-                    </a>
-                    <a ng-click="addDimension()">
-                        <i class="fa fa-plus"></i>
-                    </a>
-                </li>
-            </ul>
-            <div class="clearfix"></div>
-        </div>
+                </span>
+            </li>
+            <li class="tight-form-item">
+                <a ng-click="addDimension()">
+                    <i class="fa fa-plus"></i>
+                </a>
+            </li>
+        </ul>
+        <div class="clearfix"></div>
     </div>
 </div>

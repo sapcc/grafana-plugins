@@ -8,6 +8,7 @@ function (angular, _) {
   var module = angular.module('grafana.controllers');
 
   var metricList = null;
+  var currentDimension = null;
 
   module.controller('MonascaQueryCtrl', function($scope, uiSegmentSrv) {
 
@@ -15,8 +16,8 @@ function (angular, _) {
       if (!$scope.target.aggregator) {
         $scope.target.aggregator = 'avg';
       }
-      if (!$scope.target.currentDimension) {
-        $scope.target.currentDimension = {};
+      if (!$scope.target.dimensions) {
+        $scope.target.dimensions = [];
       }
       if ($scope.target.metric) {
         $scope.resetDimensionList();
@@ -32,17 +33,12 @@ function (angular, _) {
       }
     };
 
-    $scope.duplicate = function() {
-      var clone = angular.copy($scope.target);
-      $scope.panel.targets.push(clone);
-    };
-
     function validateTarget() {
       $scope.target.errors = {};
 
       $scope.validateMetric();
       $scope.validateGroupBy();
-      $scope.validateCurrentDimension();
+      $scope.validateDimensions();
     }
 
     //////////////////////////////
@@ -88,14 +84,10 @@ function (angular, _) {
           $scope.target.errors.period = 'Group By Time must be set';
           return;
         }
+
       }
       delete $scope.target.errors.period;
     };
-
-    function isInt(str) {
-      var n = ~~Number(str);
-      return String(n) === str && n >= 0;
-    }
 
     //////////////////////////////
     // DIMENSIONS
@@ -108,12 +100,9 @@ function (angular, _) {
             .then($scope.datasource.buildDimensionList)
             .then(function(dimensions) {
           $scope.dimensionList = dimensions;
-          $scope.validateCurrentDimension();
         });
       }
-      else {
-        $scope.validateCurrentDimension();
-      }
+      $scope.validateDimensions();
     };
 
     $scope.suggestDimensionKeys = function(query, callback) {
@@ -137,34 +126,20 @@ function (angular, _) {
               .then($scope.datasource.buildDimensionList)
               .then(function(dimensions) {
             $scope.dimensionList = dimensions;
-            callback(dimensions.values[$scope.target.currentDimension.key]);
+            callback(dimensions.values[$scope.currentDimension.key]);
           });
         }
       }
-      return $scope.dimensionList.values[$scope.target.currentDimension.key].concat($scope.datasource.listTemplates());
+      return $scope.dimensionList.values[$scope.currentDimension.key].concat($scope.datasource.listTemplates());
     };
 
+    $scope.editDimension = function(index) {
+      $scope.currentDimension = $scope.target.dimensions[index]
+    }
+
     $scope.addDimension = function() {
-      if (!$scope.addDimensionMode) {
-        //Enabling this mode will display the dimension inputs
-        $scope.target.currentDimension = {};
-        $scope.addDimensionMode = true;
-        $scope.validateCurrentDimension();
-        return;
-      }
-
-      if (!$scope.target.dimensions) {
-        $scope.target.dimensions = [];
-      }
-
-      $scope.validateCurrentDimension();
-      if (!$scope.target.errors.dimension) {
-        //Add new dimension to the list
-        $scope.target.dimensions.push($scope.target.currentDimension);
-        $scope.addDimensionMode = false;
-      }
-
-      $scope.targetBlur();
+      $scope.target.dimensions.push({})
+      $scope.validateDimension($scope.target.dimensions.length -1)
     };
 
     $scope.removeDimension = function(index) {
@@ -172,26 +147,42 @@ function (angular, _) {
       $scope.targetBlur();
     };
 
-    $scope.clearDimension = function() {
-      $scope.addDimensionMode = false;
-      $scope.targetBlur();
+    $scope.validateDimensions = function() {
+      for (var i = 0; i < $scope.target.dimensions.length; i++) {
+        $scope.validateDimension(i);
+      }
+      if (_.isEmpty($scope.target.errors.dimensions)) {
+        delete $scope.target.errors.dimensions;
+      }
+    }
+
+    $scope.validateDimension = function(index) {
+      var dimension = $scope.target.dimensions[index]
+
+      if (!("dimensions" in $scope.target.errors)) {
+        $scope.target.errors.dimensions = {}
+      }
+
+      if (!('key' in dimension) || dimension.key === '') {
+        $scope.target.errors.dimensions[index] = 'You must supply a dimension key.';
+        return;
+      }
+      if (!('value' in dimension) || dimension.value === '') {
+        $scope.target.errors.dimensions[index] = 'You must supply a dimension value.';
+        return;
+      }
+      delete $scope.target.errors.dimensions;
     };
 
-    $scope.validateCurrentDimension = function() {
-      if ($scope.addDimensionMode === true) {
-        if (!('key' in $scope.target.currentDimension) ||
-            $scope.target.currentDimension.key === '') {
-          $scope.target.errors.currentDimension = 'You must supply a dimension key.';
-          return;
-        }
-        if (!('value' in $scope.target.currentDimension) ||
-            $scope.target.currentDimension.value === '') {
-          $scope.target.errors.currentDimension = 'You must supply a dimension value.';
-          return;
-        }
+    $scope.getDimensionErrors = function(index) {
+      if ("dimensions" in $scope.target.errors &&
+          index in $scope.target.errors.dimensions){
+        return $scope.target.errors.dimensions[index]
       }
-      delete $scope.target.errors.currentDimension;
-    };
+      else {
+        return null
+      }
+    }
 
     //////////////////////////////
     // ALIAS
