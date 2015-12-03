@@ -10,4 +10,8 @@ function (angular) {
     return {controller: 'MonascaQueryCtrl', templateUrl: 'app/plugins/datasource/monasca/partials/query.editor.html'};
   });
 
+  module.directive('metricQueryOptionsMonasca', function() {
+    return {templateUrl: 'app/plugins/datasource/monasca/partials/query.options.html'};
+  });
+
 });

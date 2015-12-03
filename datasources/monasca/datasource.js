@@ -22,11 +22,11 @@ function (angular, _, dateMath, kbn) {
     }
 
     MonascaDatasource.prototype.query = function(options) {
-      var dataSource = this;
+      var datasource = this;
       var from =  this.translateTime(options.range.from);
       var to =  this.translateTime(options.range.to);
 
-      var targets = [];
+      var targets_list = [];
       for (var i = 0; i < options.targets.length; i++) {
         var target = options.targets[i];
         if (!_.isEmpty(target.errors) || target.hide) {
@@ -35,16 +35,23 @@ function (angular, _, dateMath, kbn) {
         var query = this.buildDataQuery(options.targets[i], from, to);
         query = templateSrv.replace(query, options.scopedVars);
         var query_list = this.expandQueries(query);
-        targets = targets.concat(query_list);
+        targets_list.push(query_list);
       }
-
-      var promises = targets.map(function (target) {
-        target = dataSource.convertPeriod(target);
-        return dataSource._monascaRequest(target, {}).then(dataSource.convertDataPoints);
+      var targets_promise = $q.all(targets_list).then(function(results) {
+        return _.flatten(results)
       });
 
-      return $q.all(promises).then(function(results) {
-        return { data: _.flatten(results).filter(function(result) { return !_.isEmpty(result)}) };
+      var promises = $q.resolve(targets_promise).then(function(targets) {
+        return targets.map(function (target) {
+          target = datasource.convertPeriod(target);
+          return datasource._monascaRequest(target, {}).then(datasource.convertDataPoints);
+        });
+      });
+
+      return $q.resolve(promises).then(function(promises) {
+        return $q.all(promises).then(function(results) {
+          return { data: _.flatten(results).filter(function(result) { return !_.isEmpty(result)}) };
+        });
       });
     };
 
@@ -85,6 +92,11 @@ function (angular, _, dateMath, kbn) {
       return {'keys' : keys, 'values' : values};
     };
 
+    MonascaDatasource.prototype.buildMetricList = function(data) {
+      data = data.data.elements;
+      return data
+    };
+
     MonascaDatasource.prototype.buildDataQuery = function(options, from, to) {
       var params = {};
       params.name = options.metric;
@@ -117,7 +129,7 @@ function (angular, _, dateMath, kbn) {
         path = '/v2.0/metrics/statistics';
       }
       else {
-        path = '/v2.0/metrics/measurements';
+        path = '/v2.0/metrics/measurements';matchingMetrics
       }
       var first = true;
       Object.keys(params).forEach(function (key) {
@@ -136,6 +148,18 @@ function (angular, _, dateMath, kbn) {
     };
 
     MonascaDatasource.prototype.expandQueries = function(query) {
+      var datasource = this;
+      return this.expandAllQueries(query).then(function(partial_query_list) {
+        var query_list = []
+        for (var i = 0; i < partial_query_list.length; i++) {
+          query_list = query_list.concat(datasource.expandTemplatedQueries(partial_query_list[i]));
+        }
+        query_list = datasource.autoAlias(query_list)
+        return query_list
+      })
+    };
+
+    MonascaDatasource.prototype.expandTemplatedQueries = function(query) {
       var templated_vars = query.match(/{[^}]*}/g);
       if ( !templated_vars ) {
         return [query];
@@ -147,9 +171,77 @@ function (angular, _, dateMath, kbn) {
       var_options = var_options.split(',');
       for (var i = 0; i < var_options.length; i++) {
         var new_query = query.replace(new RegExp(to_replace, 'g'), var_options[i]);
-        expandedQueries = expandedQueries.concat(this.expandQueries(new_query));
+        expandedQueries = expandedQueries.concat(this.expandTemplatedQueries(new_query));
       }
       return expandedQueries;
+    };
+
+    MonascaDatasource.prototype.expandAllQueries = function(query) {
+      if (query.indexOf("$all") > -1) {
+        var metric_name = query.match(/name=([^&]*)/)[1]
+
+        // Find all matching subqueries
+        var dimregex = /(?:dimensions=|,)([^,]*):\$all/g;
+        var matches, neededDimensions = [];
+        while (matches = dimregex.exec(query)) {
+            neededDimensions.push(matches[1]);
+        }
+
+        var queriesPromise = this.metricsQuery({'name' : metric_name}).then(function(data) {
+          var expandedQueries = []
+          var metrics = data.data.elements
+          var matchingMetrics = {} // object ensures uniqueness of dimension sets
+          for (var i = 0; i < metrics.length; i++) {
+            var dimensions = metrics[i].dimensions
+            var set = {}
+            var skip = false
+            for (var j = 0; j < neededDimensions.length; j++) {
+              var key = neededDimensions[j]
+              if (!(key in dimensions)) {
+                skip = true
+                break
+              };
+              set[key] = dimensions[key]
+            }
+            if (!skip) {
+              matchingMetrics[JSON.stringify(set)] = set
+            };
+          }
+          Object.keys(matchingMetrics).forEach(function (set) {
+            var new_query = query
+            var match = matchingMetrics[set]
+            Object.keys(match).forEach(function (key) {
+              var to_replace = key+":\\$all"
+              var replacement = key+":"+match[key]
+              new_query = new_query.replace(new RegExp(to_replace, 'g'), replacement);
+            })
+            expandedQueries.push(new_query);
+          })
+          return expandedQueries
+        });
+
+        return queriesPromise;
+      }
+      else {
+        return $q.resolve([query]);
+      };
+    };
+
+    MonascaDatasource.prototype.autoAlias = function(query_list) {
+      for (var i = 0; i < query_list.length; i++) {
+        var query = query_list[i]
+        var alias = query.match(/alias=@([^&]*)/)
+        var dimensions = query.match(/dimensions=([^&]*)/)
+        if (alias && dimensions) {
+          var key = alias[1]
+          var regex =  new RegExp(key+":([^,^&]*)")
+          var value = dimensions[1].match(regex)
+          if (value) {
+            query_list[i] = query.replace("@"+key, value[1]);
+          }
+        }
+      }
+      return query_list
     };
 
     MonascaDatasource.prototype.convertDataPoints = function(data) {

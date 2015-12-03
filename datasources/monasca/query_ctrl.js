@@ -130,7 +130,10 @@ function (angular, _) {
           });
         }
       }
-      return $scope.dimensionList.values[$scope.currentDimension.key].concat($scope.datasource.listTemplates());
+      var values = $scope.dimensionList.values[$scope.currentDimension.key];
+      values = values.concat($scope.datasource.listTemplates());
+      values.push("$all");
+      return values;
     };
 
     $scope.editDimension = function(index) {
@@ -189,7 +192,12 @@ function (angular, _) {
     //////////////////////////////
 
     $scope.suggestAlias = function(query, callback) {
-      return $scope.datasource.listTemplates();
+      var suggestions = $scope.datasource.listTemplates()
+      var dimensions = $scope.target.dimensions
+      for (var i = 0; i < dimensions.length; i++) {
+        suggestions.push("@"+dimensions[i].key)
+      }
+      return suggestions;
     };
 
     $scope.init();
