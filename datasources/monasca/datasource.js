@@ -179,6 +179,7 @@ function (angular, _, dateMath, kbn) {
     MonascaDatasource.prototype.expandAllQueries = function(query) {
       if (query.indexOf("$all") > -1) {
         var metric_name = query.match(/name=([^&]*)/)[1]
+        var start_time = query.match(/start_time=([^&]*)/)[1]
 
         // Find all matching subqueries
         var dimregex = /(?:dimensions=|,)([^,]*):\$all/g;
@@ -187,7 +188,8 @@ function (angular, _, dateMath, kbn) {
             neededDimensions.push(matches[1]);
         }
 
-        var queriesPromise = this.metricsQuery({'name' : metric_name}).then(function(data) {
+        var metricQueryParams = {'name' : metric_name, 'start_time': start_time}
+        var queriesPromise = this.metricsQuery(metricQueryParams).then(function(data) {
           var expandedQueries = []
           var metrics = data.data.elements
           var matchingMetrics = {} // object ensures uniqueness of dimension sets
