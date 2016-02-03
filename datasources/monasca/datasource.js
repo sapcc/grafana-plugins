@@ -2,26 +2,26 @@ define([
   'angular',
   'lodash',
   'app/core/utils/datemath',
-  'kbn',
-  './directives',
+  'app/core/utils/kbn',
   './query_ctrl',
   'moment',
 ],
 function (angular, _, dateMath, kbn) {
   'use strict';
 
-  var module = angular.module('grafana.services');
-
-  module.factory('MonascaDatasource', function($q, backendSrv, templateSrv) {
-
-    function MonascaDatasource(datasource) {
-      this.url = datasource.url;
-      this.name = datasource.name;
-
-      this.token = datasource.jsonData.token;
+  function MonascaDatasource(instanceSettings, $q, backendSrv, templateSrv) {
+    this.url = instanceSettings.url;
+    this.name = instanceSettings.name;
+    this.access= instanceSettings.access;
+    if (instanceSettings.jsonData) {
+      this.token = instanceSettings.jsonData.token;
+      this.keystoneAuth = instanceSettings.jsonData.keystoneAuth;
+    } else {
+      this.token = null;
+      this.keystoneAuth = null;
     }
 
-    MonascaDatasource.prototype.query = function(options) {
+    this.query = function(options) {
       var datasource = this;
       var from =  this.translateTime(options.range.from);
       var to =  this.translateTime(options.range.to);
@@ -55,11 +55,11 @@ function (angular, _, dateMath, kbn) {
       });
     };
 
-    MonascaDatasource.prototype.namesQuery = function() {
+    this.namesQuery = function() {
       return this._monascaRequest('/v2.0/metrics/names', {});
     };
 
-    MonascaDatasource.prototype.convertNamesList = function(data) {
+    this.convertNamesList = function(data) {
       var metrics = [];
       data = data.data.elements;
       for (var i = 0; i < data.length; i++) {
@@ -68,11 +68,11 @@ function (angular, _, dateMath, kbn) {
       return metrics;
     };
 
-    MonascaDatasource.prototype.metricsQuery = function(params) {
+    this.metricsQuery = function(params) {
       return this._monascaRequest('/v2.0/metrics', params);
     };
 
-    MonascaDatasource.prototype.buildDimensionList = function(data) {
+    this.buildDimensionList = function(data) {
       var keys = [];
       var values = {};
       data = data.data.elements;
@@ -92,12 +92,12 @@ function (angular, _, dateMath, kbn) {
       return {'keys' : keys, 'values' : values};
     };
 
-    MonascaDatasource.prototype.buildMetricList = function(data) {
+    this.buildMetricList = function(data) {
       data = data.data.elements;
       return data
     };
 
-    MonascaDatasource.prototype.buildDataQuery = function(options, from, to) {
+    this.buildDataQuery = function(options, from, to) {
       var params = {};
       params.name = options.metric;
       params.merge_metrics = 'true';
@@ -129,7 +129,7 @@ function (angular, _, dateMath, kbn) {
         path = '/v2.0/metrics/statistics';
       }
       else {
-        path = '/v2.0/metrics/measurements';matchingMetrics
+        path = '/v2.0/metrics/measurements';
       }
       var first = true;
       Object.keys(params).forEach(function (key) {
@@ -147,7 +147,7 @@ function (angular, _, dateMath, kbn) {
       return path;
     };
 
-    MonascaDatasource.prototype.expandQueries = function(query) {
+    this.expandQueries = function(query) {
       var datasource = this;
       return this.expandAllQueries(query).then(function(partial_query_list) {
         var query_list = []
@@ -159,7 +159,7 @@ function (angular, _, dateMath, kbn) {
       })
     };
 
-    MonascaDatasource.prototype.expandTemplatedQueries = function(query) {
+    this.expandTemplatedQueries = function(query) {
       var templated_vars = query.match(/{[^}]*}/g);
       if ( !templated_vars ) {
         return [query];
@@ -176,7 +176,7 @@ function (angular, _, dateMath, kbn) {
       return expandedQueries;
     };
 
-    MonascaDatasource.prototype.expandAllQueries = function(query) {
+    this.expandAllQueries = function(query) {
       if (query.indexOf("$all") > -1) {
         var metric_name = query.match(/name=([^&]*)/)[1]
         var start_time = query.match(/start_time=([^&]*)/)[1]
@@ -229,7 +229,7 @@ function (angular, _, dateMath, kbn) {
       };
     };
 
-    MonascaDatasource.prototype.autoAlias = function(query_list) {
+    this.autoAlias = function(query_list) {
       for (var i = 0; i < query_list.length; i++) {
         var query = query_list[i]
         var alias = query.match(/alias=@([^&]*)/)
@@ -246,7 +246,7 @@ function (angular, _, dateMath, kbn) {
       return query_list
     };
 
-    MonascaDatasource.prototype.convertDataPoints = function(data) {
+    this.convertDataPoints = function(data) {
       var url = data.config.url;
       data = data.data.elements[0];
       if (!data) {
@@ -283,12 +283,14 @@ function (angular, _, dateMath, kbn) {
       return convertedData;
     };
 
-    MonascaDatasource.prototype._monascaRequest = function(path, params) {
-      var data = null;
+    this._monascaRequest = function(path, params) {
       var headers = {
         'Content-Type': 'application/json',
-        'X-Auth-Token': this.token
       };
+
+      if (this.token) {
+        headers['X-Auth-Token'] = this.token
+      }
 
       var options = {
         method: 'GET',
@@ -298,10 +300,14 @@ function (angular, _, dateMath, kbn) {
         withCredentials: true,
       };
 
+      if (this.keystoneAuth) {
+        options['keystoneAuth'] = true;
+      }
+
       return backendSrv.datasourceRequest(options);
     };
 
-    MonascaDatasource.prototype.metricFindQuery = function(query) {
+    this.metricFindQuery = function(query) {
       return this.metricsQuery({}).then(function(data) {
         var values = [];
         data = data.data.elements;
@@ -320,7 +326,7 @@ function (angular, _, dateMath, kbn) {
       });
     };
 
-    MonascaDatasource.prototype.listTemplates = function() {
+    this.listTemplates = function() {
       var template_list = [];
       for (var i = 0; i < templateSrv.variables.length; i++) {
         template_list.push('$'+templateSrv.variables[i].name);
@@ -328,20 +334,20 @@ function (angular, _, dateMath, kbn) {
       return template_list;
     };
 
-    MonascaDatasource.prototype.testDatasource = function() {
+    this.testDatasource = function() {
       return this.namesQuery().then(function () {
         return { status: 'success', message: 'Data source is working', title: 'Success' };
       });
     };
 
-    MonascaDatasource.prototype.translateTime = function(date) {
+    this.translateTime = function(date) {
       if (date === 'now') {
         return null;
       }
       return moment.utc(dateMath.parse(date).valueOf()).toISOString();
     };
 
-    MonascaDatasource.prototype.convertPeriod = function(target) {
+    this.convertPeriod = function(target) {
       var regex = target.match(/period=[^&]*/);
       if (regex) {
         var period = regex[0].substring('period='.length);
@@ -354,13 +360,11 @@ function (angular, _, dateMath, kbn) {
       return target;
     };
 
-    MonascaDatasource.prototype.isInt = function(str) {
+    this.isInt = function(str) {
       var n = ~~Number(str);
       return String(n) === str && n >= 0;
     };
+  }
 
-    return MonascaDatasource;
-
-  });
-
+  return MonascaDatasource;
 });
