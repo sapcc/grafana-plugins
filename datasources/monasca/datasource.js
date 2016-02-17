@@ -2,7 +2,7 @@ define([
   'angular',
   'lodash',
   'app/core/utils/datemath',
-  'kbn',
+  'app/core/utils/kbn',
   './directives',
   './query_ctrl',
   'moment',
@@ -18,7 +18,13 @@ function (angular, _, dateMath, kbn) {
       this.url = datasource.url;
       this.name = datasource.name;
 
-      this.token = datasource.jsonData.token;
+      if (datasource.jsonData) {
+        this.token = datasource.jsonData.token;
+        this.keystoneAuth = datasource.jsonData.keystoneAuth;
+      } else {
+        this.token = null;
+        this.keystoneAuth = null;
+      }
     }
 
     MonascaDatasource.prototype.query = function(options) {
@@ -79,14 +85,14 @@ function (angular, _, dateMath, kbn) {
       for (var i = 0; i < data.length; i++) {
         var dim_set = data[i].dimensions;
         Object.keys(dim_set).forEach(function (key) {
-            if (keys.indexOf(key) == -1) {
-              keys.push(key);
-              values[key] = [];
-            }
-            var value = dim_set[key];
-            if (values[key].indexOf(value) == -1) {
-              values[key].push(value);
-            }
+          if (keys.indexOf(key) == -1) {
+            keys.push(key);
+            values[key] = [];
+          }
+          var value = dim_set[key];
+          if (values[key].indexOf(value) == -1) {
+            values[key].push(value);
+          }
         });
       }
       return {'keys' : keys, 'values' : values};
@@ -123,13 +129,13 @@ function (angular, _, dateMath, kbn) {
         params.alias = options.alias;
       }
       var path;
-      if ( options.aggregator != 'none' ) {
+      if (options.aggregator != 'none') {
         params.statistics = options.aggregator;
         params.period = options.period;
         path = '/v2.0/metrics/statistics';
       }
       else {
-        path = '/v2.0/metrics/measurements';matchingMetrics
+        path = '/v2.0/metrics/measurements';
       }
       var first = true;
       Object.keys(params).forEach(function (key) {
@@ -161,7 +167,7 @@ function (angular, _, dateMath, kbn) {
 
     MonascaDatasource.prototype.expandTemplatedQueries = function(query) {
       var templated_vars = query.match(/{[^}]*}/g);
-      if ( !templated_vars ) {
+      if (!templated_vars) {
         return [query];
       }
 
@@ -185,7 +191,7 @@ function (angular, _, dateMath, kbn) {
         var dimregex = /(?:dimensions=|,)([^,]*):\$all/g;
         var matches, neededDimensions = [];
         while (matches = dimregex.exec(query)) {
-            neededDimensions.push(matches[1]);
+          neededDimensions.push(matches[1]);
         }
 
         var metricQueryParams = {'name' : metric_name, 'start_time': start_time}
@@ -255,7 +261,7 @@ function (angular, _, dateMath, kbn) {
 
       var target = data.name;
       var alias = url.match(/alias=[^&]*/);
-      if ( alias ) {
+      if (alias) {
         target = alias[0].substring('alias='.length);
       }
       var raw_datapoints;
@@ -307,7 +313,7 @@ function (angular, _, dateMath, kbn) {
         data = data.data.elements;
         for (var i = 0; i < data.length; i++) {
           var dim_set = data[i].dimensions;
-          if ( query in dim_set ) {
+          if (query in dim_set) {
             var value = dim_set[query];
             if (values.indexOf(value) == -1) {
               values.push(value);
