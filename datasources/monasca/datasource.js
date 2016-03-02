@@ -232,15 +232,19 @@ function (angular, _, dateMath, kbn) {
     this.autoAlias = function(query_list) {
       for (var i = 0; i < query_list.length; i++) {
         var query = query_list[i]
-        var alias = query.match(/alias=@([^&]*)/)
+        var alias = query.match(/alias=([^&]*)/)
         var dimensions = query.match(/dimensions=([^&]*)/)
         if (alias && dimensions) {
-          var key = alias[1]
-          var regex =  new RegExp(key+":([^,^&]*)")
-          var value = dimensions[1].match(regex)
-          if (value) {
-            query_list[i] = query.replace("@"+key, value[1]);
+          var keys = alias[1].split(" ").filter(function(s){return s.charAt(0)=="@"})
+          for (var key_index in keys) {
+            var key = keys[key_index].slice(1)
+            var regex =  new RegExp(key+":([^,^&]*)")
+            var value = dimensions[1].match(regex)
+            if (value) {
+              query = query.replace("@"+key, value[1]);
+            }
           }
+          query_list[i] = query
         }
       }
       return query_list
