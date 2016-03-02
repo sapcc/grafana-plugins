@@ -235,7 +235,7 @@ function (angular, _, dateMath, kbn) {
         var alias = query.match(/alias=@([^&]*)/)
         var dimensions = query.match(/dimensions=([^&]*)/)
         if (alias && dimensions) {
-          var key = alias[1]
+          var key = alias[1].split(" ",1)
           var regex =  new RegExp(key+":([^,^&]*)")
           var value = dimensions[1].match(regex)
           if (value) {
