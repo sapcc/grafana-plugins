@@ -241,12 +241,16 @@ function (angular, _, dateMath, kbn) {
         var alias = query.match(/alias=@([^&]*)/)
         var dimensions = query.match(/dimensions=([^&]*)/)
         if (alias && dimensions) {
-          var key = alias[1]
-          var regex =  new RegExp(key+":([^,^&]*)")
-          var value = dimensions[1].match(regex)
-          if (value) {
-            query_list[i] = query.replace("@"+key, value[1]);
+          var dimensions_list = dimensions[1].split(',')
+          var dimensions_dict = {}
+          for (var j = 0; j < dimensions_list.length; j++) {
+            var dim = dimensions_list[j].split(':')
+            dimensions_dict[dim[0]] = dim[1]
           }
+          for (var key in dimensions_dict) {
+            query = query.replace("@"+key, dimensions_dict[key]);
+          }
+          query_list[i] = query
         }
       }
       return query_list
