@@ -44,7 +44,7 @@ function (angular, _, dateMath, kbn) {
         targets_list.push(query_list);
       }
       var targets_promise = $q.all(targets_list).then(function(results) {
-        return _.flatten(results)
+        return _.flatten(results);
       });
 
       var promises = $q.resolve(targets_promise).then(function(targets) {
@@ -84,7 +84,7 @@ function (angular, _, dateMath, kbn) {
       data = data.data.elements;
       for (var i = 0; i < data.length; i++) {
         var dim_set = data[i].dimensions;
-        Object.keys(dim_set).forEach(function (key) {
+        for (var key in dim_set) {
           if (keys.indexOf(key) == -1) {
             keys.push(key);
             values[key] = [];
@@ -93,14 +93,14 @@ function (angular, _, dateMath, kbn) {
           if (values[key].indexOf(value) == -1) {
             values[key].push(value);
           }
-        });
+        }
       }
       return {'keys' : keys, 'values' : values};
     };
 
     MonascaDatasource.prototype.buildMetricList = function(data) {
       data = data.data.elements;
-      return data
+      return data;
     };
 
     MonascaDatasource.prototype.buildDataQuery = function(options, from, to) {
@@ -156,13 +156,13 @@ function (angular, _, dateMath, kbn) {
     MonascaDatasource.prototype.expandQueries = function(query) {
       var datasource = this;
       return this.expandAllQueries(query).then(function(partial_query_list) {
-        var query_list = []
+        var query_list = [];
         for (var i = 0; i < partial_query_list.length; i++) {
           query_list = query_list.concat(datasource.expandTemplatedQueries(partial_query_list[i]));
         }
-        query_list = datasource.autoAlias(query_list)
-        return query_list
-      })
+        query_list = datasource.autoAlias(query_list);
+        return query_list;
+      });
     };
 
     MonascaDatasource.prototype.expandTemplatedQueries = function(query) {
@@ -184,8 +184,8 @@ function (angular, _, dateMath, kbn) {
 
     MonascaDatasource.prototype.expandAllQueries = function(query) {
       if (query.indexOf("$all") > -1) {
-        var metric_name = query.match(/name=([^&]*)/)[1]
-        var start_time = query.match(/start_time=([^&]*)/)[1]
+        var metric_name = query.match(/name=([^&]*)/)[1];
+        var start_time = query.match(/start_time=([^&]*)/)[1];
 
         // Find all matching subqueries
         var dimregex = /(?:dimensions=|,)([^,]*):\$all/g;
@@ -194,66 +194,66 @@ function (angular, _, dateMath, kbn) {
           neededDimensions.push(matches[1]);
         }
 
-        var metricQueryParams = {'name' : metric_name, 'start_time': start_time}
+        var metricQueryParams = {'name' : metric_name, 'start_time': start_time};
         var queriesPromise = this.metricsQuery(metricQueryParams).then(function(data) {
-          var expandedQueries = []
-          var metrics = data.data.elements
-          var matchingMetrics = {} // object ensures uniqueness of dimension sets
+          var expandedQueries = [];
+          var metrics = data.data.elements;
+          var matchingMetrics = {}; // object ensures uniqueness of dimension sets
           for (var i = 0; i < metrics.length; i++) {
-            var dimensions = metrics[i].dimensions
-            var set = {}
-            var skip = false
+            var dimensions = metrics[i].dimensions;
+            var set = {};
+            var skip = false;
             for (var j = 0; j < neededDimensions.length; j++) {
-              var key = neededDimensions[j]
+              var key = neededDimensions[j];
               if (!(key in dimensions)) {
-                skip = true
-                break
-              };
-              set[key] = dimensions[key]
+                skip = true;
+                break;
+              }
+              set[key] = dimensions[key];
             }
             if (!skip) {
-              matchingMetrics[JSON.stringify(set)] = set
-            };
+              matchingMetrics[JSON.stringify(set)] = set;
+            }
           }
           Object.keys(matchingMetrics).forEach(function (set) {
-            var new_query = query
-            var match = matchingMetrics[set]
+            var new_query = query;
+            var match = matchingMetrics[set];
             Object.keys(match).forEach(function (key) {
-              var to_replace = key+":\\$all"
-              var replacement = key+":"+match[key]
+              var to_replace = key+":\\$all";
+              var replacement = key+":"+match[key];
               new_query = new_query.replace(new RegExp(to_replace, 'g'), replacement);
-            })
+            });
             expandedQueries.push(new_query);
-          })
-          return expandedQueries
+          });
+          return expandedQueries;
         });
 
         return queriesPromise;
       }
       else {
         return $q.resolve([query]);
-      };
+      }
     };
 
     MonascaDatasource.prototype.autoAlias = function(query_list) {
       for (var i = 0; i < query_list.length; i++) {
-        var query = query_list[i]
-        var alias = query.match(/alias=@([^&]*)/)
-        var dimensions = query.match(/dimensions=([^&]*)/)
+        var query = query_list[i];
+        var alias = query.match(/alias=@([^&]*)/);
+        var dimensions = query.match(/dimensions=([^&]*)/);
         if (alias && dimensions) {
-          var dimensions_list = dimensions[1].split(',')
-          var dimensions_dict = {}
+          var dimensions_list = dimensions[1].split(',');
+          var dimensions_dict = {};
           for (var j = 0; j < dimensions_list.length; j++) {
-            var dim = dimensions_list[j].split(':')
-            dimensions_dict[dim[0]] = dim[1]
+            var dim = dimensions_list[j].split(':');
+            dimensions_dict[dim[0]] = dim[1];
           }
           for (var key in dimensions_dict) {
             query = query.replace("@"+key, dimensions_dict[key]);
           }
-          query_list[i] = query
+          query_list[i] = query;
         }
       }
-      return query_list
+      return query_list;
     };
 
     MonascaDatasource.prototype.convertDataPoints = function(data) {
