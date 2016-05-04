@@ -79,7 +79,7 @@ function (angular, _) {
     //////////////////////////////
 
     $scope.validateGroupBy = function() {
-      if ($scope.target.aggregator !== 'none') {
+      if ($scope.target.aggregator != 'none') {
         if (!$scope.target.period) {
           $scope.target.errors.period = 'Group By Time must be set';
           return;
@@ -138,11 +138,11 @@ function (angular, _) {
 
     $scope.editDimension = function(index) {
       $scope.currentDimension = $scope.target.dimensions[index]
-    };
+    }
 
     $scope.addDimension = function() {
-      $scope.target.dimensions.push({});
-      $scope.validateDimension($scope.target.dimensions.length -1);
+      $scope.target.dimensions.push({})
+      $scope.validateDimension($scope.target.dimensions.length -1)
     };
 
     $scope.removeDimension = function(index) {
@@ -157,13 +157,13 @@ function (angular, _) {
       if (_.isEmpty($scope.target.errors.dimensions)) {
         delete $scope.target.errors.dimensions;
       }
-    };
+    }
 
     $scope.validateDimension = function(index) {
-      var dimension = $scope.target.dimensions[index];
+      var dimension = $scope.target.dimensions[index]
 
       if (!("dimensions" in $scope.target.errors)) {
-        $scope.target.errors.dimensions = {};
+        $scope.target.errors.dimensions = {}
       }
 
       if (!('key' in dimension) || dimension.key === '') {
@@ -180,23 +180,22 @@ function (angular, _) {
     $scope.getDimensionErrors = function(index) {
       if ("dimensions" in $scope.target.errors &&
           index in $scope.target.errors.dimensions){
-        return $scope.target.errors.dimensions[index];
+        return $scope.target.errors.dimensions[index]
       }
       else {
-        return null;
+        return null
       }
-    };
+    }
 
     //////////////////////////////
     // ALIAS
     //////////////////////////////
 
     $scope.suggestAlias = function(query, callback) {
-      var up_to_last_tag = query.substr(0, query.lastIndexOf('@'));
-      var suggestions = $scope.datasource.listTemplates();
-      var dimensions = $scope.target.dimensions;
+      var suggestions = $scope.datasource.listTemplates()
+      var dimensions = $scope.target.dimensions
       for (var i = 0; i < dimensions.length; i++) {
-        suggestions.push(up_to_last_tag+"@"+dimensions[i].key);
+        suggestions.push("@"+dimensions[i].key)
       }
       return suggestions;
     };
