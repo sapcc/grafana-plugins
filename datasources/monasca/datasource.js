@@ -50,7 +50,7 @@ function (angular, _, dateMath, kbn) {
       var promises = $q.resolve(targets_promise).then(function(targets) {
         return targets.map(function (target) {
           target = datasource.convertPeriod(target);
-          return datasource._monascaRequest(target, {}).then(datasource.convertDataPoints);
+          return datasource._limitedMonascaRequest(target, {}).then(datasource.convertDataPoints);
         });
       });
 
@@ -62,7 +62,7 @@ function (angular, _, dateMath, kbn) {
     };
 
     MonascaDatasource.prototype.namesQuery = function() {
-      return this._monascaRequest('/v2.0/metrics/names', {});
+      return this._limitedMonascaRequest('/v2.0/metrics/names', {});
     };
 
     MonascaDatasource.prototype.convertNamesList = function(data) {
@@ -75,7 +75,7 @@ function (angular, _, dateMath, kbn) {
     };
 
     MonascaDatasource.prototype.metricsQuery = function(params) {
-      return this._monascaRequest('/v2.0/metrics', params);
+      return this._limitedMonascaRequest('/v2.0/metrics', params);
     };
 
     MonascaDatasource.prototype.buildDimensionList = function(data) {
@@ -293,6 +293,61 @@ function (angular, _, dateMath, kbn) {
       return convertedData;
     };
 
+    // For use with specified or api enforced limits.
+    // Pages through data until all data is retrieved.
+    MonascaDatasource.prototype._limitedMonascaRequest = function(path, params) {
+      var datasource = this;
+      var deferred = $q.defer();
+      var data = null;
+      var element_list = [];
+
+      function aggregateResults() {
+        var elements = {};
+        for (var i = 0; i < element_list.length; i++) {
+          var element = element_list[i];
+          if (elements[element.id]){
+            if (element.measurements){
+              elements[element.id].measurements = elements[element.id].measurements.concat(element.measurements);
+            }
+            if (element.statistics){
+              elements[element.id].measurements = elements[element.id].statistics.concat(element.statistics);
+            }
+          }
+          else{
+            elements[element.id] = element;
+          }
+        }
+        var test = Object.keys(elements).map(function(key){
+          return elements[key];
+        });
+        data.data.elements = element_list;
+      }
+
+      function requestAll(multi_page) {
+        datasource._monascaRequest(path, params)
+          .then(function(d) {
+            data = d;
+            element_list = element_list.concat(d.data.elements);
+            if(d.data.links) {
+              for (var i = 0; i < d.data.links.length; i++) {
+                if (d.data.links[i].rel == 'next'){
+                  var offset = d.data.links[i].href.match(/offset=[^&]*/);
+                  params.offset = offset[0].substring('offset='.length);
+                  requestAll(true);
+                  return;
+                }
+              }
+            }
+            if (multi_page){
+              aggregateResults();
+            }
+            deferred.resolve(data);
+          });
+      }
+      requestAll(false);
+      return deferred.promise;
+    };
+
     MonascaDatasource.prototype._monascaRequest = function(path, params) {
       var data = null;
       var headers = {
@@ -312,7 +367,7 @@ function (angular, _, dateMath, kbn) {
     };
 
     MonascaDatasource.prototype.metricFindQuery = function(query) {
-      return this.metricsQuery({}).then(function(data) {
+      return this.metricsQuery({'limit': 10000}).then(function(data) {
         var values = [];
         data = data.data.elements;
         for (var i = 0; i < data.length; i++) {
