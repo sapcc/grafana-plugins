@@ -367,7 +367,7 @@ function (angular, _, dateMath, kbn) {
     };
 
     MonascaDatasource.prototype.metricFindQuery = function(query) {
-      return this.metricsQuery().then(function(data) {
+      return this.metricsQuery({}).then(function(data) {
         var values = [];
         data = data.data.elements;
         for (var i = 0; i < data.length; i++) {
