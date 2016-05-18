@@ -51,7 +51,6 @@ function (angular, _, dateMath, kbn) {
       return $q.resolve(promises).then(function(promises) {
         return $q.all(promises).then(function(results) {
           results = _.flatten(results)
-          console.log(results)
           return { data: _.flatten(results).filter(function(result) { return !_.isEmpty(result)}) };
         });
       });
@@ -113,6 +112,9 @@ function (angular, _, dateMath, kbn) {
         for (var i = 0; i < options.dimensions.length; i++) {
           var key = options.dimensions[i].key;
           var value = options.dimensions[i].value;
+          if (value == '$all') {
+            continue;
+          }
           if (dimensions) {
             dimensions += ',';
           }
