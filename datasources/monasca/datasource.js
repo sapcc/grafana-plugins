@@ -40,22 +40,18 @@ function (angular, _, dateMath, kbn) {
         }
         var query = this.buildDataQuery(options.targets[i], from, to);
         query = templateSrv.replace(query, options.scopedVars);
-        var query_list = this.expandQueries(query);
-        targets_list.push(query_list);
+        targets_list.push(query);
       }
-      var targets_promise = $q.all(targets_list).then(function(results) {
-        return _.flatten(results);
-      });
 
-      var promises = $q.resolve(targets_promise).then(function(targets) {
-        return targets.map(function (target) {
+      var promises = targets_list.map(function (target) {
           target = datasource.convertPeriod(target);
           return datasource._limitedMonascaRequest(target, {}).then(datasource.convertDataPoints);
-        });
       });
 
       return $q.resolve(promises).then(function(promises) {
         return $q.all(promises).then(function(results) {
+          results = _.flatten(results)
+          console.log(results)
           return { data: _.flatten(results).filter(function(result) { return !_.isEmpty(result)}) };
         });
       });
@@ -107,6 +103,7 @@ function (angular, _, dateMath, kbn) {
       var params = {};
       params.name = options.metric;
       params.merge_metrics = 'true';
+      params.group_by = '*';
       params.start_time = from;
       if (to) {
         params.end_time = to;
@@ -153,144 +150,49 @@ function (angular, _, dateMath, kbn) {
       return path;
     };
 
-    MonascaDatasource.prototype.expandQueries = function(query) {
-      var datasource = this;
-      return this.expandAllQueries(query).then(function(partial_query_list) {
-        var query_list = [];
-        for (var i = 0; i < partial_query_list.length; i++) {
-          query_list = query_list.concat(datasource.expandTemplatedQueries(partial_query_list[i]));
-        }
-        query_list = datasource.autoAlias(query_list);
-        return query_list;
-      });
-    };
-
-    MonascaDatasource.prototype.expandTemplatedQueries = function(query) {
-      var templated_vars = query.match(/{[^}]*}/g);
-      if (!templated_vars) {
-        return [query];
-      }
-
-      var expandedQueries = [];
-      var to_replace = templated_vars[0];
-      var var_options = to_replace.substring(1, to_replace.length - 1);
-      var_options = var_options.split(',');
-      for (var i = 0; i < var_options.length; i++) {
-        var new_query = query.replace(new RegExp(to_replace, 'g'), var_options[i]);
-        expandedQueries = expandedQueries.concat(this.expandTemplatedQueries(new_query));
-      }
-      return expandedQueries;
-    };
-
-    MonascaDatasource.prototype.expandAllQueries = function(query) {
-      if (query.indexOf("$all") > -1) {
-        var metric_name = query.match(/name=([^&]*)/)[1];
-        var start_time = query.match(/start_time=([^&]*)/)[1];
-
-        // Find all matching subqueries
-        var dimregex = /(?:dimensions=|,)([^,]*):\$all/g;
-        var matches, neededDimensions = [];
-        while (matches = dimregex.exec(query)) {
-          neededDimensions.push(matches[1]);
-        }
-
-        var metricQueryParams = {'name' : metric_name, 'start_time': start_time};
-        var queriesPromise = this.metricsQuery(metricQueryParams).then(function(data) {
-          var expandedQueries = [];
-          var metrics = data.data.elements;
-          var matchingMetrics = {}; // object ensures uniqueness of dimension sets
-          for (var i = 0; i < metrics.length; i++) {
-            var dimensions = metrics[i].dimensions;
-            var set = {};
-            var skip = false;
-            for (var j = 0; j < neededDimensions.length; j++) {
-              var key = neededDimensions[j];
-              if (!(key in dimensions)) {
-                skip = true;
-                break;
-              }
-              set[key] = dimensions[key];
-            }
-            if (!skip) {
-              matchingMetrics[JSON.stringify(set)] = set;
-            }
-          }
-          Object.keys(matchingMetrics).forEach(function (set) {
-            var new_query = query;
-            var match = matchingMetrics[set];
-            Object.keys(match).forEach(function (key) {
-              var to_replace = key+":\\$all";
-              var replacement = key+":"+match[key];
-              new_query = new_query.replace(new RegExp(to_replace, 'g'), replacement);
-            });
-            expandedQueries.push(new_query);
-          });
-          return expandedQueries;
-        });
-
-        return queriesPromise;
-      }
-      else {
-        return $q.resolve([query]);
-      }
-    };
-
-    MonascaDatasource.prototype.autoAlias = function(query_list) {
-      for (var i = 0; i < query_list.length; i++) {
-        var query = query_list[i];
-        var alias = query.match(/alias=@([^&]*)/);
-        var dimensions = query.match(/dimensions=([^&]*)/);
-        if (alias && dimensions) {
-          var dimensions_list = dimensions[1].split(',');
-          var dimensions_dict = {};
-          for (var j = 0; j < dimensions_list.length; j++) {
-            var dim = dimensions_list[j].split(':');
-            dimensions_dict[dim[0]] = dim[1];
-          }
-          for (var key in dimensions_dict) {
-            query = query.replace("@"+key, dimensions_dict[key]);
-          }
-          query_list[i] = query;
-        }
-      }
-      return query_list;
-    };
-
     MonascaDatasource.prototype.convertDataPoints = function(data) {
       var url = data.config.url;
-      data = data.data.elements[0];
-      if (!data) {
-        return {};
-      }
+      var results = []
 
-      var target = data.name;
-      var alias = url.match(/alias=[^&]*/);
-      if (alias) {
-        target = alias[0].substring('alias='.length);
-      }
-      var raw_datapoints;
-      var aggregator;
-      if ('measurements' in data) {
-        raw_datapoints = data.measurements;
-        aggregator = 'value';
-      }
-      else {
-        raw_datapoints = data.statistics;
-        aggregator = url.match(/statistics=[^&]*/);
-        aggregator = aggregator[0].substring('statistics='.length);
-      }
-      var datapoints = [];
-      var timeCol = data.columns.indexOf('timestamp');
-      var dataCol = data.columns.indexOf(aggregator);
-      for (var i = 0; i < raw_datapoints.length; i++) {
-        var datapoint = raw_datapoints[i];
-        var time = new Date(datapoint[timeCol]);
-        var point = datapoint[dataCol];
-        datapoints.push([point, time.getTime()]);
-      }
+      for (var i = 0; i < data.data.elements.length; i++)
+      {
+        var element = data.data.elements[i];
 
-      var convertedData = { 'target': target, 'datapoints': datapoints };
-      return convertedData;
+        var target = element.name;
+        var alias = data.config.url.match(/alias=([^&]*)/);
+        if (alias) {
+          alias = alias[1]
+          if (alias.substring(0, 1) == "@") {
+            alias = element.dimensions[alias.substring(1)]
+            target = alias
+          }
+          target = alias
+        }
+
+        var raw_datapoints;
+        var aggregator;
+        if ('measurements' in element) {
+          raw_datapoints = element.measurements;
+          aggregator = 'value';
+        }
+        else {
+          raw_datapoints = element.statistics;
+          aggregator = url.match(/statistics=[^&]*/);
+          aggregator = aggregator[0].substring('statistics='.length);
+        }
+        var datapoints = [];
+        var timeCol = element.columns.indexOf('timestamp');
+        var dataCol = element.columns.indexOf(aggregator);
+        for (var j = 0; j < raw_datapoints.length; j++) {
+          var datapoint = raw_datapoints[j];
+          var time = new Date(datapoint[timeCol]);
+          var point = datapoint[dataCol];
+          datapoints.push([point, time.getTime()]);
+        }
+        var convertedData = { 'target': target, 'datapoints': datapoints };
+        results.push(convertedData)
+      }
+      return results;
     };
 
     // For use with specified or api enforced limits.
@@ -305,7 +207,7 @@ function (angular, _, dateMath, kbn) {
         var elements = {};
         for (var i = 0; i < element_list.length; i++) {
           var element = element_list[i];
-          if (elements[element.id]){
+          if (element.id in elements){
             if (element.measurements){
               elements[element.id].measurements = elements[element.id].measurements.concat(element.measurements);
             }
@@ -317,10 +219,9 @@ function (angular, _, dateMath, kbn) {
             elements[element.id] = element;
           }
         }
-        var test = Object.keys(elements).map(function(key){
+        data.data.elements = Object.keys(elements).map(function(key){
           return elements[key];
         });
-        data.data.elements = element_list;
       }
 
       function requestAll(multi_page) {
@@ -331,8 +232,9 @@ function (angular, _, dateMath, kbn) {
             if(d.data.links) {
               for (var i = 0; i < d.data.links.length; i++) {
                 if (d.data.links[i].rel == 'next'){
-                  var offset = d.data.links[i].href.match(/offset=[^&]*/);
-                  params.offset = offset[0].substring('offset='.length);
+                  var next = decodeURIComponent(d.data.links[i].href)
+                  var offset = next.match(/offset=([^&]*)/);
+                  params.offset = offset[1];
                   requestAll(true);
                   return;
                 }
