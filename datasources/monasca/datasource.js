@@ -40,12 +40,19 @@ function (angular, _, dateMath, kbn) {
         }
         var query = this.buildDataQuery(options.targets[i], from, to);
         query = templateSrv.replace(query, options.scopedVars);
-        targets_list.push(query);
+        var query_list = this.expandTemplatedQueries(query);
+        targets_list.push(query_list);
       }
 
-      var promises = targets_list.map(function (target) {
-          target = datasource.convertPeriod(target);
-          return datasource._limitedMonascaRequest(target, {}).then(datasource.convertDataPoints);
+      var targets_promise = $q.all(targets_list).then(function(results) {
+        return _.flatten(results);
+      });
+
+      var promises = $q.resolve(targets_promise).then(function(targets) {
+        return targets.map(function (target) {
+            target = datasource.convertPeriod(target);
+            return datasource._limitedMonascaRequest(target, {}).then(datasource.convertDataPoints);
+        });
       });
 
       return $q.resolve(promises).then(function(promises) {
@@ -152,6 +159,23 @@ function (angular, _, dateMath, kbn) {
       return path;
     };
 
+    MonascaDatasource.prototype.expandTemplatedQueries = function(query) {
+      var templated_vars = query.match(/{[^}]*}/g);
+      if (!templated_vars) {
+        return [query];
+      }
+
+      var expandedQueries = [];
+      var to_replace = templated_vars[0];
+      var var_options = to_replace.substring(1, to_replace.length - 1);
+      var_options = var_options.split(',');
+      for (var i = 0; i < var_options.length; i++) {
+        var new_query = query.replace(new RegExp(to_replace, 'g'), var_options[i]);
+        expandedQueries = expandedQueries.concat(this.expandTemplatedQueries(new_query));
+      }
+      return expandedQueries;
+    };
+
     MonascaDatasource.prototype.convertDataPoints = function(data) {
       var url = data.config.url;
       var results = []
@@ -164,9 +188,9 @@ function (angular, _, dateMath, kbn) {
         var alias = data.config.url.match(/alias=([^&]*)/);
         if (alias) {
           alias = alias[1]
-          if (alias.substring(0, 1) == "@") {
-            alias = element.dimensions[alias.substring(1)]
-            target = alias
+          for (var key in element.dimensions)
+          {
+            alias = alias.replace("@"+key, element.dimensions[key])
           }
           target = alias
         }
