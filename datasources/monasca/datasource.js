@@ -40,7 +40,12 @@ function (angular, _, dateMath, kbn) {
         }
         var query = this.buildDataQuery(options.targets[i], from, to);
         query = templateSrv.replace(query, options.scopedVars);
-        var query_list = this.expandTemplatedQueries(query);
+        if (options.group){
+          var query_list = this.expandTemplatedQueries(query);
+        }
+        else {
+          var query_list = this.expandQueries(query);
+        }
         targets_list.push(query_list);
       }
 
@@ -108,8 +113,12 @@ function (angular, _, dateMath, kbn) {
     MonascaDatasource.prototype.buildDataQuery = function(options, from, to) {
       var params = {};
       params.name = options.metric;
-      params.merge_metrics = 'true';
-      params.group_by = '*';
+      if (options.group) {
+        params.group_by = '*';
+      }
+      else {
+        params.merge_metrics = 'true';
+      }
       params.start_time = from;
       if (to) {
         params.end_time = to;
@@ -119,7 +128,7 @@ function (angular, _, dateMath, kbn) {
         for (var i = 0; i < options.dimensions.length; i++) {
           var key = options.dimensions[i].key;
           var value = options.dimensions[i].value;
-          if (value == '$all') {
+          if (options.group && value == '$all') {
             continue;
           }
           if (dimensions) {
@@ -159,6 +168,18 @@ function (angular, _, dateMath, kbn) {
       return path;
     };
 
+    MonascaDatasource.prototype.expandQueries = function(query) {
+      var datasource = this;
+      return this.expandAllQueries(query).then(function(partial_query_list) {
+        var query_list = [];
+        for (var i = 0; i < partial_query_list.length; i++) {
+          query_list = query_list.concat(datasource.expandTemplatedQueries(partial_query_list[i]));
+        }
+        query_list = datasource.autoAlias(query_list);
+        return query_list;
+      });
+    };
+
     MonascaDatasource.prototype.expandTemplatedQueries = function(query) {
       var templated_vars = query.match(/{[^}]*}/g);
       if (!templated_vars) {
@@ -175,6 +196,81 @@ function (angular, _, dateMath, kbn) {
       }
       return expandedQueries;
     };
+
+    MonascaDatasource.prototype.expandAllQueries = function(query) {
+      if (query.indexOf("$all") > -1) {
+        var metric_name = query.match(/name=([^&]*)/)[1];
+        var start_time = query.match(/start_time=([^&]*)/)[1];
+
+        // Find all matching subqueries
+        var dimregex = /(?:dimensions=|,)([^,]*):\$all/g;
+        var matches, neededDimensions = [];
+        while (matches = dimregex.exec(query)) {
+          neededDimensions.push(matches[1]);
+        }
+
+        var metricQueryParams = {'name' : metric_name, 'start_time': start_time};
+        var queriesPromise = this.metricsQuery(metricQueryParams).then(function(data) {
+          var expandedQueries = [];
+          var metrics = data.data.elements;
+          var matchingMetrics = {}; // object ensures uniqueness of dimension sets
+          for (var i = 0; i < metrics.length; i++) {
+            var dimensions = metrics[i].dimensions;
+            var set = {};
+            var skip = false;
+            for (var j = 0; j < neededDimensions.length; j++) {
+              var key = neededDimensions[j];
+              if (!(key in dimensions)) {
+                skip = true;
+                break;
+              }
+              set[key] = dimensions[key];
+            }
+            if (!skip) {
+              matchingMetrics[JSON.stringify(set)] = set;
+            }
+          }
+          Object.keys(matchingMetrics).forEach(function (set) {
+            var new_query = query;
+            var match = matchingMetrics[set];
+            Object.keys(match).forEach(function (key) {
+              var to_replace = key+":\\$all";
+              var replacement = key+":"+match[key];
+              new_query = new_query.replace(new RegExp(to_replace, 'g'), replacement);
+            });
+            expandedQueries.push(new_query);
+          });
+          return expandedQueries;
+        });
+
+        return queriesPromise;
+      }
+      else {
+        return $q.resolve([query]);
+      }
+    };
+
+    MonascaDatasource.prototype.autoAlias = function(query_list) {
+      for (var i = 0; i < query_list.length; i++) {
+        var query = query_list[i];
+        var alias = query.match(/alias=@([^&]*)/);
+        var dimensions = query.match(/dimensions=([^&]*)/);
+        if (alias && dimensions[1]) {
+          var dimensions_list = dimensions[1].split(',');
+          var dimensions_dict = {};
+          for (var j = 0; j < dimensions_list.length; j++) {
+            var dim = dimensions_list[j].split(':');
+            dimensions_dict[dim[0]] = dim[1];
+          }
+          for (var key in dimensions_dict) {
+            query = query.replace("@"+key, dimensions_dict[key]);
+          }
+          query_list[i] = query;
+        }
+      }
+      return query_list;
+    };
+
 
     MonascaDatasource.prototype.convertDataPoints = function(data) {
       var url = data.config.url;
@@ -250,10 +346,30 @@ function (angular, _, dateMath, kbn) {
         });
       }
 
+      // Handle incosistent element.id from merging here.  Remove when this bug is fixed.
+      function flattenResults() {
+        var elements = [];
+        for (var i = 0; i < element_list.length; i++) {
+          var element = element_list[i];
+          if (element.measurements){
+            elements.push(element.measurements);
+          }
+          if (element.statistics){
+             elements.push(element.statistics);
+          }
+        }
+        if (data.data.elements.measurements){
+          data.data.elements.measurements = _.flatten(elements)
+        }
+        if (data.data.elements.statistics){
+          data.data.elements.statistics = _.flatten(elements)
+        }
+      }
+
       function requestAll(multi_page) {
         datasource._monascaRequest(path, params)
           .then(function(d) {
-            data = d;
+            data = d
             element_list = element_list.concat(d.data.elements);
             if(d.data.links) {
               for (var i = 0; i < d.data.links.length; i++) {
@@ -266,8 +382,15 @@ function (angular, _, dateMath, kbn) {
                 }
               }
             }
+            // Handle incosistent element.id from merging here.  Remove when this bug is fixed.
+            var query = d.data.links[0].href
             if (multi_page){
-              aggregateResults();
+              if (query.indexOf('merge_metrics') > -1) {
+                flattenResults();
+              }
+              else {
+                aggregateResults();
+              }
             }
             deferred.resolve(data);
           });

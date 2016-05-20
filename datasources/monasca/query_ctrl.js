@@ -132,7 +132,7 @@ function (angular, _) {
       }
       var values = $scope.dimensionList.values[$scope.currentDimension.key];
       values = values.concat($scope.datasource.listTemplates());
-      // values.push("$all");
+      values.push("$all");
       return values;
     };
 
