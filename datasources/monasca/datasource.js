@@ -62,7 +62,6 @@ function (angular, _, dateMath, kbn) {
 
       return $q.resolve(promises).then(function(promises) {
         return $q.all(promises).then(function(results) {
-          results = _.flatten(results)
           return { data: _.flatten(results).filter(function(result) { return !_.isEmpty(result)}) };
         });
       });
@@ -358,11 +357,11 @@ function (angular, _, dateMath, kbn) {
              elements.push(element.statistics);
           }
         }
-        if (data.data.elements.measurements){
-          data.data.elements.measurements = _.flatten(elements)
+        if (data.data.elements[0].measurements){
+          data.data.elements[0].measurements = _.flatten(elements, true)
         }
-        if (data.data.elements.statistics){
-          data.data.elements.statistics = _.flatten(elements)
+        if (data.data.elements[0].statistics){
+          data.data.elements[0].statistics = _.flatten(elements, true)
         }
       }
 
