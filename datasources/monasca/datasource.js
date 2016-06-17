@@ -252,7 +252,7 @@ function (angular, _, dateMath, kbn) {
     MonascaDatasource.prototype.autoAlias = function(query_list) {
       for (var i = 0; i < query_list.length; i++) {
         var query = query_list[i];
-        var alias = query.match(/alias=@([^&]*)/);
+        var alias = query.match(/alias=[^&@]*@([^&]*)/);
         var dimensions = query.match(/dimensions=([^&]*)/);
         if (alias && dimensions[1]) {
           var dimensions_list = dimensions[1].split(',');
@@ -262,7 +262,7 @@ function (angular, _, dateMath, kbn) {
             dimensions_dict[dim[0]] = dim[1];
           }
           for (var key in dimensions_dict) {
-            query = query.replace("@"+key, dimensions_dict[key]);
+            query = query.replace(new RegExp("@"+key, 'g'), dimensions_dict[key]);
           }
           query_list[i] = query;
         }

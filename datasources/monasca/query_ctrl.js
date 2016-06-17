@@ -192,10 +192,11 @@ function (angular, _) {
     //////////////////////////////
 
     $scope.suggestAlias = function(query, callback) {
+      var upToLastTag = query.substr(0, query.lastIndexOf('@'))
       var suggestions = $scope.datasource.listTemplates()
       var dimensions = $scope.suggestDimensionKeys(query, callback)
       for (var i = 0; i < dimensions.length; i++) {
-        suggestions.push("@"+dimensions[i])
+        suggestions.push(upToLastTag+"@"+dimensions[i])
       }
       return suggestions;
     };
