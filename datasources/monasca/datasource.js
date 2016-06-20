@@ -250,9 +250,18 @@ function (angular, _, dateMath, kbn) {
     };
 
     MonascaDatasource.prototype.autoAlias = function(query_list) {
+      function keysSortedByLengthDesc(obj) {
+        var keys = [];
+        for (var key in obj) {
+          keys.push(key)
+        }
+        function byLength(a, b) {return b.length - a.length}
+        return keys.sort(byLength)
+      };
+
       for (var i = 0; i < query_list.length; i++) {
         var query = query_list[i];
-        var alias = query.match(/alias=@([^&]*)/);
+        var alias = query.match(/alias=[^&@]*@([^&]*)/);
         var dimensions = query.match(/dimensions=([^&]*)/);
         if (alias && dimensions[1]) {
           var dimensions_list = dimensions[1].split(',');
@@ -261,8 +270,9 @@ function (angular, _, dateMath, kbn) {
             var dim = dimensions_list[j].split(':');
             dimensions_dict[dim[0]] = dim[1];
           }
-          for (var key in dimensions_dict) {
-            query = query.replace("@"+key, dimensions_dict[key]);
+          var keys = keysSortedByLengthDesc(dimensions_dict);
+          for (var k in keys) {
+            query = query.replace(new RegExp("@"+keys[k], 'g'), dimensions_dict[keys[k]]);
           }
           query_list[i] = query;
         }
@@ -272,8 +282,17 @@ function (angular, _, dateMath, kbn) {
 
 
     MonascaDatasource.prototype.convertDataPoints = function(data) {
+      function keysSortedByLengthDesc(obj) {
+        var keys = [];
+        for (var key in obj) {
+          keys.push(key)
+        }
+        function byLength(a, b) {return b.length - a.length}
+        return keys.sort(byLength)
+      };
+
       var url = data.config.url;
-      var results = []
+      var results = [];
 
       for (var i = 0; i < data.data.elements.length; i++)
       {
@@ -282,10 +301,10 @@ function (angular, _, dateMath, kbn) {
         var target = element.name;
         var alias = data.config.url.match(/alias=([^&]*)/);
         if (alias) {
-          alias = alias[1]
-          for (var key in element.dimensions)
-          {
-            alias = alias.replace("@"+key, element.dimensions[key])
+          alias = alias[1];
+          var keys = keysSortedByLengthDesc(element.dimensions);
+          for (var k in keys) {
+            alias = alias.replace(new RegExp("@"+keys[k], 'g'), element.dimensions[keys[k]])
           }
           target = alias
         }
