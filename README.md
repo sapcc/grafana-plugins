@@ -1,3 +1,5 @@
+__IMPORTANT NOTE: this version of the grafana plugins is no longer maintained by us__
+
 grafana-plugins
 ===============
 
